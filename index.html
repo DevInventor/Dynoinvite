@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="gu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invitation Cards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Hind+Vadodara:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --green:#2f6b3a; --deep:#1d4526; --red:#c0202a; --paper:#f3f6ee; --line:#cfdcc8; --font:"Hind Vadodara","Nirmala UI",sans-serif; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:var(--font); background:var(--paper); color:var(--deep); }
+  main { display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,440px); gap:32px; max-width:1200px; margin:0 auto; padding:32px 16px; align-items:start; }
+  h1 { margin:0 0 4px; font-size:28px; color:var(--green); }
+  p.sub { margin:0 0 24px; color:#5c7460; }
+  .row { display:grid; grid-template-columns:28px 1.5fr 1fr auto auto; gap:8px; align-items:center; padding:8px; border:1px solid transparent; border-radius:10px; }
+  .row.active { background:#fff; border-color:var(--line); }
+  .row span { text-align:right; color:#8aa08c; font-size:14px; }
+  input { width:100%; min-width:0; padding:10px 12px; font:inherit; font-size:17px; color:inherit; background:#fff; border:1px solid var(--line); border-radius:8px; }
+  input:focus-visible, button:focus-visible { outline:2px solid var(--green); outline-offset:1px; }
+  button { font:inherit; font-weight:600; padding:10px 14px; border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--green); cursor:pointer; }
+  button:hover { border-color:var(--green); }
+  button.primary { background:var(--green); border-color:var(--green); color:#fff; }
+  button.del { color:var(--red); }
+  .actions { display:flex; gap:8px; margin:16px 8px 0; flex-wrap:wrap; }
+  aside { position:sticky; top:16px; }
+  canvas { width:100%; height:auto; display:block; border-radius:12px; box-shadow:0 8px 30px rgba(29,69,38,.18); }
+
+  @media (min-width:801px) { .m { display:none !important; } }
+
+  /* Phone: two steps. Step 1 = type names, step 2 = preview and download. */
+  @media (max-width:800px) {
+    .d { display:none !important; }
+    main { display:block; padding:16px 12px 0; }
+    main[data-step="1"] aside, main[data-step="2"] section { display:none; }
+    h1 { font-size:22px; }
+    p.sub { margin-bottom:12px; font-size:15px; }
+    .row { grid-template-columns:1fr auto; padding:8px; margin-bottom:8px; background:#fff; border-color:var(--line); }
+    .row.active { border-color:var(--green); }
+    .row span { display:none; }
+    .row input { grid-area:1 / 1; }
+    .row .del { grid-area:1 / 2; }
+    .row input:nth-of-type(2) { grid-area:2 / 1 / auto / -1; }
+    button { padding:12px 14px; }
+    .actions { margin:0; padding:12px 0; flex-wrap:nowrap; }
+    .actions button { flex:1; }
+    section .actions { position:sticky; bottom:0; background:var(--paper); }
+    aside { position:static; display:flex; flex-direction:column; gap:12px; }
+    .bar { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .nav { display:flex; align-items:center; gap:8px; }
+    canvas { width:auto; max-width:100%; max-height:calc(100dvh - 170px); margin:0 auto; }
+  }
+</style>
+</head>
+<body>
+<main data-step="1">
+  <section>
+    <h1>આમંત્રણ કાર્ડ</h1>
+    <p class="sub d">Type a name and who is invited — the card on the right updates as you type.</p>
+    <p class="sub m">Type a name and who is invited, then preview the card.</p>
+    <div id="rows"></div>
+    <div class="actions">
+      <button id="add">+ Add name</button>
+      <button class="all primary d">Download all</button>
+      <button id="next" class="primary m">Preview →</button>
+    </div>
+  </section>
+  <aside>
+    <div class="bar m">
+      <button id="back">← Edit names</button>
+      <div class="nav" id="nav">
+        <button id="prev" aria-label="Previous card">‹</button>
+        <span id="count"></span>
+        <button id="fwd" aria-label="Next card">›</button>
+      </div>
+    </div>
+    <canvas id="cv" width="1026" height="1600" aria-label="Card preview"></canvas>
+    <div class="actions m">
+      <button id="dl" class="primary">Download</button>
+      <button class="all">Download all</button>
+    </div>
+  </aside>
+</main>
+
+<script src="card.js"></script>
+<script>
+// Where the two blank lines sit on the 1026x1600 card. Tweak here if text looks off.
+const LINES = [
+  { key: 'name',    x: 250, y: 366, max: 650 },  // after "સ્નેહીશ્રી,"
+  { key: 'persons', x: 250, y: 424, max: 650 },  // starts directly under the name
+];
+const FONT_SIZE = 36, COLOR = '#1d4526';
+const font = px => `600 ${px}px "Hind Vadodara","Nirmala UI",sans-serif`;
+
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const rowsEl = $('rows'), main = document.querySelector('main');
+const img = new Image();
+
+let rows = [{ name: 'શ્રી રમેશભાઈ પટેલ', persons: 'સહ પરિવાર' }];
+try { rows = JSON.parse(localStorage.getItem('invites')) || rows; } catch {}
+let active = 0;
+
+const save = () => { try { localStorage.setItem('invites', JSON.stringify(rows)); } catch {} };
+
+function draw(row) {
+  ctx.drawImage(img, 0, 0);
+  ctx.fillStyle = COLOR;
+  ctx.textAlign = 'left';
+  for (const l of LINES) {
+    const text = (row?.[l.key] || '').trim();
+    let px = FONT_SIZE;
+    do ctx.font = font(px); while (ctx.measureText(text).width > l.max && --px > 14); // shrink long names to fit the line
+    ctx.fillText(text, l.x, l.y);
+  }
+}
+
+function download(i) {
+  draw(rows[i]);
+  return new Promise(done => cv.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${i + 1}-${rows[i].name.trim().replace(/[\\/:*?"<>|]/g, '') || 'card'}.jpg`;
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); done(); }, 300); // gap so the browser doesn't drop back-to-back downloads
+  }, 'image/jpeg', 0.95));
+}
+
+function setActive(i) {
+  active = i;
+  [...rowsEl.children].forEach((el, j) => el.classList.toggle('active', j === i));
+  $('count').textContent = `${i + 1} / ${rows.length}`;
+  $('nav').hidden = rows.length < 2;
+  draw(rows[i]);
+}
+
+function render() {
+  rowsEl.replaceChildren(...rows.map((row, i) => {
+    const el = document.createElement('div');
+    el.className = 'row';
+    const field = (key, placeholder, label) => {
+      const inp = document.createElement('input');
+      inp.value = row[key]; inp.placeholder = placeholder; inp.lang = 'gu'; inp.setAttribute('aria-label', label);
+      inp.oninput = () => { row[key] = inp.value; save(); draw(row); };
+      inp.onfocus = () => setActive(i);
+      return inp;
+    };
+    const btn = (text, cls, label, fn) => {
+      const b = document.createElement('button');
+      b.textContent = text; b.className = cls; b.setAttribute('aria-label', label); b.onclick = fn;
+      return b;
+    };
+    const num = document.createElement('span');
+    num.textContent = i + 1;
+    el.append(num,
+      field('name', 'નામ', 'Name'),
+      field('persons', 'સહ પરિવાર / ૨ વ્યક્તિ', 'Persons invited'),
+      btn('Download', 'd', 'Download card', () => { setActive(i); download(i); }),
+      btn('✕', 'del', 'Remove', () => {
+        rows.splice(i, 1);
+        if (!rows.length) rows.push({ name: '', persons: '' });
+        save(); active = Math.min(active, rows.length - 1); render();
+      }));
+    return el;
+  }));
+  setActive(active);
+}
+
+$('add').onclick = () => {
+  rows.push({ name: '', persons: '' });
+  save(); active = rows.length - 1; render();
+  rowsEl.lastChild.querySelector('input').focus();
+};
+
+document.querySelectorAll('.all').forEach(b => b.onclick = async () => {
+  for (let i = 0; i < rows.length; i++) if (rows[i].name.trim()) await download(i);
+  draw(rows[active]);
+});
+
+// Phone stepper. Step 2 is a history entry so the phone's back button returns to the names.
+$('next').onclick = () => { main.dataset.step = 2; history.pushState({}, ''); scrollTo(0, 0); };
+$('back').onclick = () => history.back();
+onpopstate = () => { main.dataset.step = 1; };
+$('prev').onclick = () => setActive((active - 1 + rows.length) % rows.length);
+$('fwd').onclick = () => setActive((active + 1) % rows.length);
+$('dl').onclick = () => download(active);
+
+img.onload = () => {
+  render();
+  // redraw once the Gujarati web font arrives (falls back to Nirmala UI offline)
+  document.fonts.load(font(FONT_SIZE), 'ક').then(() => draw(rows[active]), () => {});
+};
+img.src = CARD_SRC;
+</script>
+</body>
+</html>
