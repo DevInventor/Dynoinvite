@@ -48,7 +48,10 @@
     aside { position:static; display:flex; flex-direction:column; gap:12px; }
     .bar { display:flex; justify-content:space-between; align-items:center; gap:8px; }
     .nav { display:flex; align-items:center; gap:8px; }
-    canvas { width:auto; max-width:100%; max-height:calc(100dvh - 170px); margin:0 auto; }
+    canvas { width:auto; max-width:100%; max-height:calc(100dvh - 225px); margin:0 auto; }
+    #share { padding:14px; }
+    #share[hidden], .nav[hidden] { display:none !important; }
+    aside .actions { padding-top:0; }
   }
 </style>
 </head>
@@ -75,8 +78,9 @@
       </div>
     </div>
     <canvas id="cv" width="1026" height="1600" aria-label="Card preview"></canvas>
+    <button id="share" class="primary m">Share to WhatsApp</button>
     <div class="actions m">
-      <button id="dl" class="primary">Download</button>
+      <button id="dl">Download</button>
       <button class="all">Download all</button>
     </div>
   </aside>
@@ -115,15 +119,25 @@ function draw(row) {
   }
 }
 
-function download(i) {
+const fileName = i => `${i + 1}-${rows[i].name.trim().replace(/[\\/:*?"<>|]/g, '') || 'card'}.jpg`;
+const cardFile = i => {
   draw(rows[i]);
-  return new Promise(done => cv.toBlob(blob => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${i + 1}-${rows[i].name.trim().replace(/[\\/:*?"<>|]/g, '') || 'card'}.jpg`;
-    a.click();
-    setTimeout(() => { URL.revokeObjectURL(a.href); done(); }, 300); // gap so the browser doesn't drop back-to-back downloads
-  }, 'image/jpeg', 0.95));
+  return new Promise(done => cv.toBlob(b => done(new File([b], fileName(i), { type: 'image/jpeg' })), 'image/jpeg', 0.95));
+};
+
+async function download(i) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(await cardFile(i));
+  a.download = fileName(i);
+  a.click();
+  await new Promise(r => setTimeout(r, 300)); // gap so the browser doesn't drop back-to-back downloads
+  URL.revokeObjectURL(a.href);
+}
+
+// Opens the phone's share sheet with the card image; pick WhatsApp there.
+async function share(i) {
+  try { await navigator.share({ files: [await cardFile(i)] }); }
+  catch (e) { if (e.name !== 'AbortError') alert('Sharing did not work here. Use Download and send the image from your gallery.'); }
 }
 
 function setActive(i) {
@@ -184,6 +198,8 @@ onpopstate = () => { main.dataset.step = 1; };
 $('prev').onclick = () => setActive((active - 1 + rows.length) % rows.length);
 $('fwd').onclick = () => setActive((active + 1) % rows.length);
 $('dl').onclick = () => download(active);
+$('share').onclick = () => share(active);
+$('share').hidden = !navigator.canShare?.({ files: [new File([], 'a.jpg', { type: 'image/jpeg' })] });
 
 img.onload = () => {
   render();
