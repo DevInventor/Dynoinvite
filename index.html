@@ -16,8 +16,8 @@
   .row { display:grid; grid-template-columns:28px 1.5fr 1fr auto auto; gap:8px; align-items:center; padding:8px; border:1px solid transparent; border-radius:10px; }
   .row.active { background:#fff; border-color:var(--line); }
   .row span { text-align:right; color:#8aa08c; font-size:14px; }
-  input { width:100%; min-width:0; padding:10px 12px; font:inherit; font-size:17px; color:inherit; background:#fff; border:1px solid var(--line); border-radius:8px; }
-  input:focus-visible, button:focus-visible { outline:2px solid var(--green); outline-offset:1px; }
+  input, select { width:100%; min-width:0; padding:10px 12px; font:inherit; font-size:17px; color:inherit; background:#fff; border:1px solid var(--line); border-radius:8px; }
+  input:focus-visible, select:focus-visible, button:focus-visible { outline:2px solid var(--green); outline-offset:1px; }
   button { font:inherit; font-weight:600; padding:10px 14px; border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--green); cursor:pointer; }
   button:hover { border-color:var(--green); }
   button.primary { background:var(--green); border-color:var(--green); color:#fff; }
@@ -40,7 +40,7 @@
     .row span { display:none; }
     .row input { grid-area:1 / 1; }
     .row .del { grid-area:1 / 2; }
-    .row input:nth-of-type(2) { grid-area:2 / 1 / auto / -1; }
+    .row select { grid-area:2 / 1 / auto / -1; }
     button { padding:12px 14px; }
     .actions { margin:0; padding:12px 0; flex-wrap:nowrap; }
     .actions button { flex:1; }
@@ -101,8 +101,13 @@ const cv = $('cv'), ctx = cv.getContext('2d');
 const rowsEl = $('rows'), main = document.querySelector('main');
 const img = new Image();
 
-let rows = [{ name: 'શ્રી રમેશભાઈ પટેલ', persons: 'સહ પરિવાર' }];
+// Dropdown label -> text written on the card's second line. Last one is the default.
+const PERSONS = [['1', '૧ વ્યક્તિ'], ['2', '૨ વ્યક્તિ'], ['All', 'સહ પરિવાર']];
+const FAMILY = PERSONS[2][1];
+
+let rows = [{ name: 'શ્રી રમેશભાઈ પટેલ', persons: FAMILY }];
 try { rows = JSON.parse(localStorage.getItem('invites')) || rows; } catch {}
+for (const r of rows) if (!PERSONS.some(p => p[1] === r.persons)) r.persons = FAMILY; // older saved free-text values
 let active = 0;
 
 const save = () => { try { localStorage.setItem('invites', JSON.stringify(rows)); } catch {} };
@@ -164,15 +169,20 @@ function render() {
       b.textContent = text; b.className = cls; b.setAttribute('aria-label', label); b.onclick = fn;
       return b;
     };
+    const sel = document.createElement('select');
+    sel.setAttribute('aria-label', 'Persons invited');
+    sel.append(...PERSONS.map(([label, text]) => new Option(`${label} — ${text}`, text)));
+    sel.value = row.persons;
+    sel.onchange = () => { row.persons = sel.value; save(); setActive(i); };
     const num = document.createElement('span');
     num.textContent = i + 1;
     el.append(num,
       field('name', 'નામ', 'Name'),
-      field('persons', 'સહ પરિવાર / ૨ વ્યક્તિ', 'Persons invited'),
+      sel,
       btn('Download', 'd', 'Download card', () => { setActive(i); download(i); }),
       btn('✕', 'del', 'Remove', () => {
         rows.splice(i, 1);
-        if (!rows.length) rows.push({ name: '', persons: '' });
+        if (!rows.length) rows.push({ name: '', persons: FAMILY });
         save(); active = Math.min(active, rows.length - 1); render();
       }));
     return el;
@@ -181,7 +191,7 @@ function render() {
 }
 
 $('add').onclick = () => {
-  rows.push({ name: '', persons: '' });
+  rows.push({ name: '', persons: FAMILY });
   save(); active = rows.length - 1; render();
   rowsEl.lastChild.querySelector('input').focus();
 };
