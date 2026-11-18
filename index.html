@@ -13,10 +13,14 @@
   main { display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,440px); gap:32px; max-width:1200px; margin:0 auto; padding:32px 16px; align-items:start; }
   h1 { margin:0 0 4px; font-size:28px; color:var(--green); }
   p.sub { margin:0 0 24px; color:#5c7460; }
-  .row { display:grid; grid-template-columns:28px 1.5fr 1fr auto auto; gap:8px; align-items:center; padding:8px; border:1px solid transparent; border-radius:10px; }
+  .row { display:grid; grid-template-columns:28px minmax(0,1fr) auto auto; gap:8px; align-items:center; padding:8px; border:1px solid transparent; border-radius:10px; }
   .row.active { background:#fff; border-color:var(--line); }
   .row span { text-align:right; color:#8aa08c; font-size:14px; }
   input, select { width:100%; min-width:0; padding:10px 12px; font:inherit; font-size:17px; color:inherit; background:#fff; border:1px solid var(--line); border-radius:8px; }
+  .per { grid-area:2 / 2 / auto / -1; display:flex; align-items:center; gap:10px; min-height:44px; }
+  .per label { display:flex; align-items:center; gap:8px; white-space:nowrap; cursor:pointer; }
+  .per select { flex:1; width:auto; max-width:260px; }
+  .per input { width:20px; height:20px; padding:0; flex:none; accent-color:var(--green); }
   input:focus-visible, select:focus-visible, button:focus-visible { outline:2px solid var(--green); outline-offset:1px; }
   button { font:inherit; font-weight:600; padding:10px 14px; border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--green); cursor:pointer; }
   button:hover { border-color:var(--green); }
@@ -40,7 +44,8 @@
     .row span { display:none; }
     .row input { grid-area:1 / 1; }
     .row .del { grid-area:1 / 2; }
-    .row select { grid-area:2 / 1 / auto / -1; }
+    .row .per { grid-area:2 / 1 / auto / -1; }
+    .per select { max-width:none; }
     button { padding:12px 14px; }
     .actions { margin:0; padding:12px 0; flex-wrap:nowrap; }
     .actions button { flex:1; }
@@ -117,7 +122,7 @@ function draw(row) {
   ctx.fillStyle = COLOR;
   ctx.textAlign = 'left';
   for (const l of LINES) {
-    const text = (row?.[l.key] || '').trim();
+    const text = l.key === 'persons' && !row?.withPersons ? '' : (row?.[l.key] || '').trim(); // persons line only when ticked
     let px = FONT_SIZE;
     do ctx.font = font(px); while (ctx.measureText(text).width > l.max && --px > 14); // shrink long names to fit the line
     ctx.fillText(text, l.x, l.y);
@@ -174,11 +179,20 @@ function render() {
     sel.append(...PERSONS.map(([label, text]) => new Option(`${label} — ${text}`, text)));
     sel.value = row.persons;
     sel.onchange = () => { row.persons = sel.value; save(); setActive(i); };
+    sel.hidden = !row.withPersons;
+    const tick = document.createElement('input');
+    tick.type = 'checkbox'; tick.checked = !!row.withPersons;
+    tick.onchange = () => { row.withPersons = tick.checked; sel.hidden = !tick.checked; save(); setActive(i); };
+    const tickLabel = document.createElement('label');
+    tickLabel.append(tick, 'Add persons');
+    const per = document.createElement('div');
+    per.className = 'per';
+    per.append(tickLabel, sel);
     const num = document.createElement('span');
     num.textContent = i + 1;
     el.append(num,
       field('name', 'નામ', 'Name'),
-      sel,
+      per,
       btn('Download', 'd', 'Download card', () => { setActive(i); download(i); }),
       btn('✕', 'del', 'Remove', () => {
         rows.splice(i, 1);
